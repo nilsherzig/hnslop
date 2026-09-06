@@ -29,7 +29,7 @@ func NewApp(proxy *Proxy, config Config, logger *log.Logger) *App {
 }
 
 // Handler returns the complete HTTP handler, including request/result-code
-// logging.
+// logging for non-health-check requests.
 func (app *App) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", app.handleIndex)
@@ -243,6 +243,11 @@ func (app *App) logProxyResult(kind string, id int64, result ProxyResult, err er
 
 func (app *App) logRequests(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path == "/healthz" {
+			next.ServeHTTP(writer, request)
+			return
+		}
+
 		recorder := &statusRecorder{ResponseWriter: writer}
 		started := time.Now()
 		next.ServeHTTP(recorder, request)

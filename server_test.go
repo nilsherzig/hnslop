@@ -12,6 +12,36 @@ import (
 	"testing"
 )
 
+func TestHealthCheckIsNotLogged(t *testing.T) {
+	database, err := OpenDatabase(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+
+	config := DefaultConfig()
+	proxy := NewProxy(database, config, nil)
+	var logs bytes.Buffer
+	app := NewApp(proxy, config, log.New(&logs, "", 0))
+
+	healthRequest := httptest.NewRequest(http.MethodGet, "http://example.test/healthz", nil)
+	healthResponse := httptest.NewRecorder()
+	app.Handler().ServeHTTP(healthResponse, healthRequest)
+	if healthResponse.Code != http.StatusOK {
+		t.Fatalf("unexpected health status: %d", healthResponse.Code)
+	}
+	if logs.Len() != 0 {
+		t.Fatalf("health check was logged: %s", logs.String())
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "http://example.test/userscript.js", nil)
+	response := httptest.NewRecorder()
+	app.Handler().ServeHTTP(response, request)
+	if !strings.Contains(logs.String(), "request GET /userscript.js") {
+		t.Fatalf("normal request was not logged: %s", logs.String())
+	}
+}
+
 func TestIndexServesEmbeddedHTML(t *testing.T) {
 	database, err := OpenDatabase(":memory:")
 	if err != nil {
