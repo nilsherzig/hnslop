@@ -224,7 +224,7 @@ func detectorResponseCacheable(response CachedResponse) bool {
 		return false
 	}
 	detector, err := ParseDetectorPage(response.Body, response.URL)
-	return err == nil && detector != nil
+	return err == nil && detector != nil && detector.AIScore != nil
 }
 
 func (proxy *Proxy) upstreamURL(path, rawQuery string) (string, error) {

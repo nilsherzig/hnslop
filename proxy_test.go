@@ -144,6 +144,89 @@ func TestProxyDoesNotCacheMissingDetectorPages(t *testing.T) {
 	}
 }
 
+func TestProxyDoesNotReplaceValidCacheWithInvalidResponse(t *testing.T) {
+	var calls atomic.Int32
+	proxy, _ := testProxy(t, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch calls.Add(1) {
+		case 1:
+			_, _ = writer.Write([]byte(`<div class="art-verdict-big">33 <span>%</span></div>`))
+		case 2:
+			http.Error(writer, "try again later", http.StatusTooManyRequests)
+		}
+	}))
+
+	first, err := proxy.FetchPost(context.Background(), 101, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.CacheStatus != CacheMiss {
+		t.Fatalf("expected initial valid response to be cached: %#v", first)
+	}
+
+	refreshed, err := proxy.FetchPost(context.Background(), 101, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if refreshed.Response.StatusCode != http.StatusTooManyRequests || refreshed.CacheStatus != CacheBypass {
+		t.Fatalf("unexpected invalid refresh result: %#v", refreshed)
+	}
+
+	cached, err := proxy.FetchPost(context.Background(), 101, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cached.CacheStatus != CacheHit || cached.Response.StatusCode != http.StatusOK {
+		t.Fatalf("invalid refresh replaced the valid cache: %#v", cached)
+	}
+	if calls.Load() != 2 {
+		t.Fatalf("cached lookup reached upstream unexpectedly: %d calls", calls.Load())
+	}
+}
+
+func TestProxyDoesNotCacheInvalidDetectorResponses(t *testing.T) {
+	tests := []struct {
+		name   string
+		status int
+		body   string
+	}{
+		{name: "forbidden", status: http.StatusForbidden, body: "forbidden"},
+		{name: "rate-limited", status: http.StatusTooManyRequests, body: "try again later"},
+		{name: "malformed-page", status: http.StatusOK, body: `<html>not a detector page</html>`},
+		{name: "challenge-page", status: http.StatusOK, body: `<html><title>Checking your browser</title></html>`},
+		{name: "missing-score", status: http.StatusOK, body: `<div class="art-verdict-big">unknown</div>`},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var calls atomic.Int32
+			proxy, _ := testProxy(t, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				if calls.Add(1) == 1 {
+					writer.WriteHeader(test.status)
+					_, _ = writer.Write([]byte(test.body))
+					return
+				}
+				_, _ = writer.Write([]byte(`<div class="art-verdict-big">42 <span>%</span></div>`))
+			}))
+
+			first, err := proxy.FetchPost(context.Background(), 100, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if first.CacheStatus != CacheBypass {
+				t.Fatalf("invalid response was cacheable: %#v", first)
+			}
+
+			second, err := proxy.FetchPost(context.Background(), 100, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if second.CacheStatus != CacheMiss || calls.Load() != 2 {
+				t.Fatalf("invalid response prevented a later valid cache miss: status=%s calls=%d", second.CacheStatus, calls.Load())
+			}
+		})
+	}
+}
+
 func TestProxyDoesNotCacheNotFoundResponses(t *testing.T) {
 	var calls atomic.Int32
 	proxy, upstream := testProxy(t, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
