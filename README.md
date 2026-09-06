@@ -2,6 +2,8 @@
 
 [hnslop](https://hnslop.nilsherzig.com) turns [Salah Adawi's Hacker News AI Detector](https://www.salahadawi.com/hacker-news-ai-detector) into a cached JSON API. Big thanks to Salah (i assume that he had to sell multiple internal organs to pay for his pangram usage).
 
+Please keep in mind that Salah is (as of the time of writing) using Pangram v3.3, which isnt the most up to date model from pangram.
+
 Request one or more posts: 
 
 ```bash
