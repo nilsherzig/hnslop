@@ -42,8 +42,9 @@ func (err *ProxyError) Error() string {
 
 func (err *ProxyError) Unwrap() error { return err.Err }
 
-// Proxy fetches Salahadawi responses and stores them permanently in SQLite.
-// It deliberately treats response bodies as opaque bytes.
+// Proxy fetches Salahadawi responses and stores cacheable responses
+// permanently in SQLite. It deliberately treats response bodies as opaque
+// bytes for generic FetchPath calls.
 type Proxy struct {
 	database   *Database
 	config     Config
@@ -87,21 +88,28 @@ func (proxy *Proxy) Close() error {
 	return nil
 }
 
-// FetchPost fetches one Hacker News post result by ID.
+type cachePolicy func(CachedResponse) bool
+
+// FetchPost fetches one Hacker News post result by ID. Only detector pages
+// containing a result are cached.
 func (proxy *Proxy) FetchPost(ctx context.Context, id int64, force bool) (ProxyResult, error) {
-	return proxy.FetchPath(ctx, proxy.config.PostPath(id), "", force)
+	return proxy.fetchPath(ctx, proxy.config.PostPath(id), "", force, detectorResponseCacheable)
 }
 
 // FetchPath fetches an arbitrary path below the configured Salahadawi origin.
 // The path and query are used as the permanent cache key.
 func (proxy *Proxy) FetchPath(ctx context.Context, path, rawQuery string, force bool) (ProxyResult, error) {
+	return proxy.fetchPath(ctx, path, rawQuery, force, nil)
+}
+
+func (proxy *Proxy) fetchPath(ctx context.Context, path, rawQuery string, force bool, policy cachePolicy) (ProxyResult, error) {
 	upstreamURL, err := proxy.upstreamURL(path, rawQuery)
 	if err != nil {
 		return ProxyResult{}, err
 	}
 
 	if !force {
-		cached, err := proxy.database.GetCachedResponse(ctx, upstreamURL)
+		cached, err := proxy.usableCachedResponse(ctx, upstreamURL, policy)
 		if err != nil {
 			return ProxyResult{}, err
 		}
@@ -118,7 +126,7 @@ func (proxy *Proxy) FetchPath(ctx context.Context, path, rawQuery string, force 
 		case <-release.done:
 		}
 		if !force {
-			cached, err := proxy.database.GetCachedResponse(ctx, upstreamURL)
+			cached, err := proxy.usableCachedResponse(ctx, upstreamURL, policy)
 			if err != nil {
 				return ProxyResult{}, err
 			}
@@ -139,15 +147,15 @@ func (proxy *Proxy) FetchPath(ctx context.Context, path, rawQuery string, force 
 
 	response, err := proxy.client.Do(request)
 	if err != nil {
-		return proxy.cachedAfterFailure(ctx, upstreamURL, err)
+		return proxy.cachedAfterFailure(ctx, upstreamURL, err, policy)
 	}
 	body, readErr := io.ReadAll(response.Body)
 	closeErr := response.Body.Close()
 	if readErr != nil {
-		return proxy.cachedAfterFailure(ctx, upstreamURL, readErr)
+		return proxy.cachedAfterFailure(ctx, upstreamURL, readErr, policy)
 	}
 	if closeErr != nil {
-		return proxy.cachedAfterFailure(ctx, upstreamURL, closeErr)
+		return proxy.cachedAfterFailure(ctx, upstreamURL, closeErr, policy)
 	}
 
 	contentType := response.Header.Get("Content-Type")
@@ -162,25 +170,28 @@ func (proxy *Proxy) FetchPath(ctx context.Context, path, rawQuery string, force 
 		FetchedAt:   time.Now().UTC().Format(time.RFC3339Nano),
 	}
 
-	// A 404 is a useful permanent answer (the post has not been analyzed),
-	// while a 5xx response should not poison an infinite cache.
-	if response.StatusCode < http.StatusInternalServerError {
+	// Only cache successful detector pages for post requests. A missing-result
+	// page may be represented either by HTTP 404 or by an .art-missing marker.
+	// 5xx responses are never cached and may fall back to a valid stale entry.
+	if response.StatusCode < http.StatusInternalServerError && cacheableResponse(cachedResponse, policy) {
 		if err := proxy.database.SaveCachedResponse(ctx, cachedResponse); err != nil {
 			return ProxyResult{}, err
 		}
 		return ProxyResult{Response: cachedResponse, CacheStatus: CacheMiss}, nil
 	}
 
-	if cached, err := proxy.database.GetCachedResponse(ctx, upstreamURL); err != nil {
-		return ProxyResult{}, err
-	} else if cached != nil {
-		return ProxyResult{Response: *cached, CacheStatus: CacheStale}, nil
+	if response.StatusCode >= http.StatusInternalServerError {
+		if cached, err := proxy.usableCachedResponse(ctx, upstreamURL, policy); err != nil {
+			return ProxyResult{}, err
+		} else if cached != nil {
+			return ProxyResult{Response: *cached, CacheStatus: CacheStale}, nil
+		}
 	}
 	return ProxyResult{Response: cachedResponse, CacheStatus: CacheBypass}, nil
 }
 
-func (proxy *Proxy) cachedAfterFailure(ctx context.Context, upstreamURL string, cause error) (ProxyResult, error) {
-	cached, err := proxy.database.GetCachedResponse(ctx, upstreamURL)
+func (proxy *Proxy) cachedAfterFailure(ctx context.Context, upstreamURL string, cause error, policy cachePolicy) (ProxyResult, error) {
+	cached, err := proxy.usableCachedResponse(ctx, upstreamURL, policy)
 	if err != nil {
 		return ProxyResult{}, err
 	}
@@ -188,6 +199,32 @@ func (proxy *Proxy) cachedAfterFailure(ctx context.Context, upstreamURL string, 
 		return ProxyResult{Response: *cached, CacheStatus: CacheStale}, nil
 	}
 	return ProxyResult{}, &ProxyError{URL: upstreamURL, Err: cause}
+}
+
+func (proxy *Proxy) usableCachedResponse(ctx context.Context, upstreamURL string, policy cachePolicy) (*CachedResponse, error) {
+	cached, err := proxy.database.GetCachedResponse(ctx, upstreamURL)
+	if err != nil {
+		return nil, err
+	}
+	if cached == nil || cacheableResponse(*cached, policy) {
+		return cached, nil
+	}
+	if err := proxy.database.DeleteCachedResponse(ctx, upstreamURL); err != nil {
+		return nil, err
+	}
+	return nil, nil
+}
+
+func cacheableResponse(response CachedResponse, policy cachePolicy) bool {
+	return policy == nil || policy(response)
+}
+
+func detectorResponseCacheable(response CachedResponse) bool {
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		return false
+	}
+	detector, err := ParseDetectorPage(response.Body, response.URL)
+	return err == nil && detector != nil
 }
 
 func (proxy *Proxy) upstreamURL(path, rawQuery string) (string, error) {

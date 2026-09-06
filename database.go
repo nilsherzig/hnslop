@@ -118,6 +118,19 @@ func (database *Database) GetCachedResponse(ctx context.Context, url string) (*C
 	return &response, nil
 }
 
+// DeleteCachedResponse removes the response for url, if one exists.
+func (database *Database) DeleteCachedResponse(ctx context.Context, url string) error {
+	_, err := database.connection.ExecContext(
+		ctx,
+		`DELETE FROM proxy_cache WHERE url = ?`,
+		url,
+	)
+	if err != nil {
+		return fmt.Errorf("delete cached response: %w", err)
+	}
+	return nil
+}
+
 // SaveCachedResponse stores or replaces a response. The body is kept as a
 // BLOB so the proxy never has to interpret upstream content.
 func (database *Database) SaveCachedResponse(ctx context.Context, response CachedResponse) error {

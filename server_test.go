@@ -257,8 +257,15 @@ func TestPostEndpointReturnsJSONForMissingPost(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
 		t.Fatal(err)
 	}
-	if payload.ID != 99 || payload.Detector != nil || payload.UpstreamStatus != http.StatusNotFound {
+	if payload.ID != 99 || payload.Detector != nil || payload.UpstreamStatus != http.StatusNotFound ||
+		payload.CacheStatus != string(CacheBypass) {
 		t.Fatalf("unexpected missing-post payload: %#v", payload)
+	}
+	if response.Header().Get("X-Hnslop-Cache") != string(CacheBypass) {
+		t.Fatalf("missing post was reported as cached: %s", response.Header().Get("X-Hnslop-Cache"))
+	}
+	if response.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("missing post response was cacheable: %s", response.Header().Get("Cache-Control"))
 	}
 	if strings.Contains(response.Body.String(), "not found") {
 		t.Fatalf("response leaked upstream error page: %s", response.Body.String())
@@ -291,7 +298,7 @@ func TestBatchEndpointReturnsParsedResults(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("unexpected batch status: %d: %s", response.Code, response.Body.String())
 	}
-	if response.Header().Get("Cache-Control") != "public, max-age=2592000" {
+	if response.Header().Get("Cache-Control") != "no-store" {
 		t.Fatalf("unexpected batch browser cache policy: %s", response.Header().Get("Cache-Control"))
 	}
 
@@ -308,8 +315,9 @@ func TestBatchEndpointReturnsParsedResults(t *testing.T) {
 		payload.Posts[0].Detector.AIScore == nil || *payload.Posts[0].Detector.AIScore != 12 {
 		t.Fatalf("missing parsed response in batch payload: %#v", payload.Posts[0])
 	}
-	if payload.Posts[1].Detector != nil {
-		t.Fatalf("expected missing detector result, got %#v", payload.Posts[1].Detector)
+	if payload.Posts[1].Detector != nil || payload.Posts[1].CacheStatus != string(CacheBypass) ||
+		payload.Posts[1].UpstreamStatus != http.StatusOK {
+		t.Fatalf("expected an uncached missing detector result, got %#v", payload.Posts[1])
 	}
 	if strings.Contains(response.Body.String(), "body_base64") || strings.Contains(response.Body.String(), "<div") {
 		t.Fatalf("batch response leaked upstream HTML: %s", response.Body.String())
@@ -330,16 +338,14 @@ func TestBatchEndpointReturnsParsedResults(t *testing.T) {
 	if hitResponse.Code != http.StatusOK || len(hitPayload.Posts) != 2 {
 		t.Fatalf("unexpected cached batch response: status=%d payload=%#v", hitResponse.Code, hitPayload)
 	}
-	if hitResponse.Header().Get("Cache-Control") != "public, max-age=2592000" {
+	if hitResponse.Header().Get("Cache-Control") != "no-store" {
 		t.Fatalf("unexpected cached batch browser cache policy: %s", hitResponse.Header().Get("Cache-Control"))
 	}
-	for _, post := range hitPayload.Posts {
-		if post.CacheStatus != string(CacheHit) || post.UpstreamStatus != 0 {
-			t.Fatalf("cached batch response exposed upstream status: %#v", post)
-		}
+	if hitPayload.Posts[0].CacheStatus != string(CacheHit) || hitPayload.Posts[0].UpstreamStatus != 0 {
+		t.Fatalf("cached batch response exposed upstream status: %#v", hitPayload.Posts[0])
 	}
-	if strings.Contains(hitResponse.Body.String(), `"upstream_status"`) {
-		t.Fatalf("cached batch response exposed upstream_status: %s", hitResponse.Body.String())
+	if hitPayload.Posts[1].CacheStatus != string(CacheBypass) || hitPayload.Posts[1].UpstreamStatus != http.StatusOK {
+		t.Fatalf("missing batch response was unexpectedly cached: %#v", hitPayload.Posts[1])
 	}
 }
 

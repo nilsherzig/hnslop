@@ -111,6 +111,7 @@ func (app *App) handlePosts(writer http.ResponseWriter, request *http.Request) {
 
 	items := make([]batchPost, 0, len(ids))
 	hasError := false
+	cacheable := !force
 	for _, id := range ids {
 		result, fetchErr := app.proxy.FetchPost(request.Context(), id, force)
 		if fetchErr != nil {
@@ -127,6 +128,9 @@ func (app *App) handlePosts(writer http.ResponseWriter, request *http.Request) {
 			continue
 		}
 		app.logProxyResult("batch", id, result, nil)
+		if !postResponseCacheable(parsed) {
+			cacheable = false
+		}
 		items = append(items, batchPostFrom(parsed))
 	}
 
@@ -134,7 +138,7 @@ func (app *App) handlePosts(writer http.ResponseWriter, request *http.Request) {
 	if hasError {
 		status = http.StatusBadGateway
 	}
-	if status == http.StatusOK && !force {
+	if status == http.StatusOK && cacheable {
 		setPostCacheHeaders(writer)
 	}
 	writeJSON(writer, status, map[string]any{"posts": items})
@@ -183,7 +187,7 @@ func (app *App) handlePost(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 	app.logProxyResult("post", id, result, nil)
-	writePostResponse(writer, parsed, !force)
+	writePostResponse(writer, parsed, !force && postResponseCacheable(parsed))
 }
 
 func (app *App) parsePostResponse(id int64, result ProxyResult) (PostResponse, error) {
@@ -200,7 +204,7 @@ func (app *App) parsePostResponse(id int64, result ProxyResult) (PostResponse, e
 		detector = nil
 	}
 	upstreamStatus := 0
-	if result.CacheStatus == CacheMiss {
+	if result.CacheStatus == CacheMiss || result.CacheStatus == CacheBypass {
 		upstreamStatus = result.Response.StatusCode
 	}
 	return PostResponse{
@@ -209,6 +213,15 @@ func (app *App) parsePostResponse(id int64, result ProxyResult) (PostResponse, e
 		CacheStatus:    string(result.CacheStatus),
 		UpstreamStatus: upstreamStatus,
 	}, nil
+}
+
+func postResponseCacheable(response PostResponse) bool {
+	switch CacheStatus(response.CacheStatus) {
+	case CacheHit, CacheMiss, CacheStale:
+		return true
+	default:
+		return false
+	}
 }
 
 func batchPostFrom(response PostResponse) batchPost {
