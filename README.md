@@ -1,6 +1,6 @@
 # hnslop
 
-[hnslop](https://hnslop.nilsherzig.com) turns [Salah Adawi's Hacker News AI Detector](https://www.salahadawi.com/hacker-news-ai-detector) into a cached JSON API. Big thanks to Salah (i assume that he had to sell multiple internal organs to pay for his pangram usage).
+[hnslop](https://hnslop.nilsherzig.com) turns [Salah Adawi's Hacker News AI Detector](https://www.salahadawi.com/hacker-news-ai-detector) into a cached JSON API. Allowing you to programmatically get pangram checks for every hackernews post that reached the frontpage. Feel free to use the hosted instance at [https://hnslop.nilsherzig.com](https://hnslop.nilsherzig.com). Big thanks to Salah (i assume that he had to sell multiple internal organs to pay for his pangram usage).
 
 Please keep in mind that Salah is (as of the time of writing) using Pangram v3.3, which isnt the most up to date model from pangram.
 
@@ -40,6 +40,6 @@ curl 'https://hnslop.nilsherzig.com/v1/posts/49582582' | jq
 # }
 ```
 
-Example userscript client at [./userscript.js]:
+Example client (userscript) at [./userscript.js]:
 
 ![userscript client demo](assets/hnslop.png)
