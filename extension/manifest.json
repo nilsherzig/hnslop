@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "hnslop – Pangram scores on Hacker News",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Show Pangram AI-detector scores next to Hacker News stories.",
   "browser_specific_settings": {
     "gecko": {
@@ -15,6 +15,7 @@
     }
   },
   "permissions": [
+    "storage",
     "https://hnslop.nilsherzig.com/*"
   ],
   "background": {

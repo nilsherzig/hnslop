@@ -9,6 +9,7 @@
     const SCORE_CLASS = "hnslop-score";
     const FILTER_CONTROL_ID = "hnslop-filter-control";
     const FILTER_INPUT_ID = "hnslop-filter-input";
+    const MAX_AI_SCORE_STORAGE_KEY = "maxAiScorePercent";
     const LOG_PREFIX = "[hnslop]";
     const NEWS_HOSTNAMES = new Set(["news.ycombinator.com", "www.news.ycombinator.com"]);
     const POST_REQUEST_CONCURRENCY = 6;
@@ -128,6 +129,31 @@
         log("Installed styles");
     }
 
+    function isValidMaxAiScorePercent(value) {
+        return typeof value === "number"
+            && Number.isInteger(value)
+            && value >= 0
+            && value <= 100;
+    }
+
+    async function restoreMaxAiScore() {
+        try {
+            const values = await browserAPI.storage.local.get(MAX_AI_SCORE_STORAGE_KEY);
+            const value = values[MAX_AI_SCORE_STORAGE_KEY];
+            maxAiScorePercent = isValidMaxAiScorePercent(value) ? value : null;
+        } catch (error) {
+            warn("Could not restore the AI score filter", { error });
+        }
+    }
+
+    async function persistMaxAiScore(value) {
+        try {
+            await browserAPI.storage.local.set({ [MAX_AI_SCORE_STORAGE_KEY]: value });
+        } catch (error) {
+            warn("Could not save the AI score filter", { error });
+        }
+    }
+
     function installFilterControl() {
         if (document.getElementById(FILTER_CONTROL_ID)) {
             log("Filter control already installed");
@@ -157,10 +183,12 @@
         input.autocomplete = "off";
         input.title = "Hide stories with an AI score above this value; leave empty to show all stories";
         input.setAttribute("aria-label", "Maximum allowed AI score in percent");
+        input.value = maxAiScorePercent === null ? "" : String(maxAiScorePercent);
         input.addEventListener("input", () => {
             const value = input.value.trim();
             if (value === "") {
                 maxAiScorePercent = null;
+                void persistMaxAiScore(maxAiScorePercent);
                 input.removeAttribute("aria-invalid");
                 reapplyFilter();
                 return;
@@ -173,6 +201,7 @@
             }
 
             maxAiScorePercent = score;
+            void persistMaxAiScore(maxAiScorePercent);
             input.removeAttribute("aria-invalid");
             reapplyFilter();
         });
@@ -515,6 +544,7 @@
             return;
         }
 
+        await restoreMaxAiScore();
         installFilterControl();
         reserveScoreSpace(rows);
         if (itemPage) {

@@ -1,10 +1,12 @@
 // ==UserScript==
 // @name         hnslop – Pangram scores on Hacker News
 // @namespace    hnslop
-// @version      0.5.0
+// @version      0.5.1
 // @description  Show Pangram AI-detector scores next to Hacker News stories.
 // @match        https://news.ycombinator.com/*
 // @match        https://www.news.ycombinator.com/*
+// @grant        GM_getValue
+// @grant        GM_setValue
 // @grant        GM_xmlhttpRequest
 // @connect      hnslop.nilsherzig.com
 // @run-at       document-idle
@@ -21,6 +23,7 @@
     const SCORE_CLASS = "hnslop-score";
     const FILTER_CONTROL_ID = "hnslop-filter-control";
     const FILTER_INPUT_ID = "hnslop-filter-input";
+    const MAX_AI_SCORE_STORAGE_KEY = "maxAiScorePercent";
     const LOG_PREFIX = "[hnslop]";
     const NEWS_HOSTNAMES = new Set(["news.ycombinator.com", "www.news.ycombinator.com"]);
     const POST_REQUEST_CONCURRENCY = 6;
@@ -140,6 +143,32 @@
         log("Installed styles");
     }
 
+    function isValidMaxAiScorePercent(value) {
+        return typeof value === "number"
+            && Number.isInteger(value)
+            && value >= 0
+            && value <= 100;
+    }
+
+    async function restoreMaxAiScore() {
+        try {
+            const value = await GM_getValue(MAX_AI_SCORE_STORAGE_KEY, null);
+            maxAiScorePercent = isValidMaxAiScorePercent(value) ? value : null;
+        } catch (error) {
+            warn("Could not restore the AI score filter", { error });
+        }
+    }
+
+    function persistMaxAiScore(value) {
+        try {
+            void Promise.resolve(GM_setValue(MAX_AI_SCORE_STORAGE_KEY, value)).catch((error) => {
+                warn("Could not save the AI score filter", { error });
+            });
+        } catch (error) {
+            warn("Could not save the AI score filter", { error });
+        }
+    }
+
     function installFilterControl() {
         if (document.getElementById(FILTER_CONTROL_ID)) {
             log("Filter control already installed");
@@ -169,10 +198,12 @@
         input.autocomplete = "off";
         input.title = "Hide stories with an AI score above this value; leave empty to show all stories";
         input.setAttribute("aria-label", "Maximum allowed AI score in percent");
+        input.value = maxAiScorePercent === null ? "" : String(maxAiScorePercent);
         input.addEventListener("input", () => {
             const value = input.value.trim();
             if (value === "") {
                 maxAiScorePercent = null;
+                persistMaxAiScore(maxAiScorePercent);
                 input.removeAttribute("aria-invalid");
                 reapplyFilter();
                 return;
@@ -185,6 +216,7 @@
             }
 
             maxAiScorePercent = score;
+            persistMaxAiScore(maxAiScorePercent);
             input.removeAttribute("aria-invalid");
             reapplyFilter();
         });
@@ -574,6 +606,7 @@
             return;
         }
 
+        await restoreMaxAiScore();
         installFilterControl();
         reserveScoreSpace(rows);
         if (itemPage) {

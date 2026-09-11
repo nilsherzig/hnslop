@@ -9,9 +9,10 @@ web_ext := env_var_or_default("WEB_EXT", "web-ext")
 default:
     @just --list
 
-# Run the Go test suite.
+# Run the Go and browser client test suites.
 test:
     go test ./...
+    node --test client.test.js
 
 # Build the server binary.
 build:
