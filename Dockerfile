@@ -4,6 +4,8 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
+# assets.go embeds the packaged Firefox extension into the server binary.
+RUN test -s /src/hnslop.xpi
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /hnslop ./cmd/hnslop
 
 FROM alpine:3.21

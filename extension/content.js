@@ -1,16 +1,4 @@
-// ==UserScript==
-// @name         hnslop – Pangram scores on Hacker News
-// @namespace    hnslop
-// @version      0.5.0
-// @description  Show Pangram AI-detector scores next to Hacker News stories.
-// @match        https://news.ycombinator.com/*
-// @match        https://www.news.ycombinator.com/*
-// @grant        GM_xmlhttpRequest
-// @connect      hnslop.nilsherzig.com
-// @run-at       document-idle
-// @noframes
-// ==/UserScript==
-
+// The WebExtension background script performs the cross-origin API request.
 (() => {
     "use strict";
 
@@ -224,69 +212,22 @@
         return rows;
     }
 
+    const browserAPI = globalThis.browser;
+
     function requestJson(path) {
         const url = `${API_BASE_URL}${path}`;
         log("Starting API request", { method: "GET", url });
 
-        return new Promise((resolve, reject) => {
-            GM_xmlhttpRequest({
-                method: "GET",
-                url,
-                timeout: REQUEST_TIMEOUT_MS,
-                responseType: "json",
-                onload: (response) => {
-                    log("Received API response", {
-                        url,
-                        status: response.status,
-                        cache: responseHeader(response, "x-hnslop-cache"),
-                        upstreamStatus: responseHeader(response, "x-hnslop-upstream-status"),
-                    });
-                    if (response.status < 200 || response.status >= 300) {
-                        const error = new Error(`API request failed with HTTP ${response.status}`);
-                        warn("API request returned an error status", { url, status: response.status });
-                        reject(error);
-                        return;
-                    }
-
-                    const payload = typeof response.response === "string"
-                        ? parseJson(response.response)
-                        : response.response || parseJson(response.responseText);
-                    if (payload === null || typeof payload !== "object" || Array.isArray(payload)) {
-                        const error = new Error("API returned an invalid JSON object");
-                        warn("API response was not a JSON object", { url });
-                        reject(error);
-                        return;
-                    }
-
-                    resolve(payload);
-                },
-                onerror: (details) => {
-                    const error = new Error("API request failed");
-                    logError("API request failed", { url, details });
-                    reject(error);
-                },
-                ontimeout: () => {
-                    const error = new Error("API request timed out");
-                    logError("API request timed out", { url, timeout: REQUEST_TIMEOUT_MS });
-                    reject(error);
-                },
+        return browserAPI.runtime.sendMessage({ type: "fetch-json", path })
+            .then((payload) => {
+                log("Received API response", { url });
+                if (payload === null || typeof payload !== "object" || Array.isArray(payload)) {
+                    const error = new Error("API returned an invalid JSON object");
+                    warn("API response was not a JSON object", { url });
+                    throw error;
+                }
+                return payload;
             });
-        });
-    }
-
-    function parseJson(value) {
-        try {
-            return JSON.parse(value);
-        } catch {
-            return null;
-        }
-    }
-
-    function responseHeader(response, name) {
-        const wanted = name.toLowerCase();
-        const lines = String(response.responseHeaders || "").split(/\r?\n/);
-        const line = lines.find((value) => value.toLowerCase().startsWith(`${wanted}:`));
-        return line ? line.slice(line.indexOf(":") + 1).trim() : "";
     }
 
     function requestPost(id) {
@@ -557,7 +498,7 @@
         const newsPage = isNewsPage();
         const itemPage = isItemPage();
         const homePage = isHomePage();
-        log("Userscript started", {
+        log("Extension started", {
             url: location.href,
             page: itemPage ? "news-item" : homePage ? "news-home" : "news-view",
         });
@@ -583,5 +524,5 @@
         }
     }
 
-    void main().catch((error) => logError("Unexpected userscript error", error));
+    void main().catch((error) => logError("Unexpected extension error", error));
 })();

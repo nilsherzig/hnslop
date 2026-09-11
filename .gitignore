@@ -12,7 +12,12 @@ data/
 *.sqlite3-shm
 *.sqlite3-wal
 
+# Extension build artifacts
+extension-artifacts/
+extension/.amo-upload-uuid
+
 # Editors
 .idea/
 .vscode/
 .direnv/
+/.envrc

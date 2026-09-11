@@ -5,78 +5,135 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>hnslop</title>
+    <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
     <style>
         :root {
             color-scheme: dark;
         }
 
         body {
+            margin: 0;
             background: #111;
             color: #eee;
+        }
+
+        .container {
+            box-sizing: border-box;
+            max-width: 72rem;
+            margin: 0 auto;
+            padding: 1.5rem clamp(1rem, 4vw, 3rem) 3rem;
         }
 
         a {
             color: #8ab4f8;
         }
 
-        code {
-            display: block;
+        .code-block {
+            box-sizing: border-box;
+            width: 100%;
+            margin: 0.75rem 0 1.5rem;
             overflow-x: auto;
             padding: 1rem;
+            border: 1px solid #333;
+            border-radius: 0.25rem;
             background: #222;
+            line-height: 1.45;
+        }
+
+        .code-block code {
             white-space: pre;
+        }
+
+        .syntax-command {
+            color: #9cdcfe;
+        }
+
+        .syntax-comment {
+            color: #6a9955;
+        }
+
+        .syntax-key {
+            color: #9cdcfe;
+        }
+
+        .syntax-string {
+            color: #ce9178;
+        }
+
+        .syntax-number {
+            color: #b5cea8;
+        }
+
+        .syntax-punctuation {
+            color: #d4d4d4;
+        }
+
+        .extension-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .firefox-logo {
+            width: 1.2rem;
+            height: 1.2rem;
+            flex: 0 0 auto;
         }
     </style>
 </head>
 
 <body>
-    <p>
-        <a href="https://github.com/nilsherzig/hnslop">This server</a> turns <a
-            href="https://www.salahadawi.com/hacker-news-ai-detector">Salah Adawi's Hacker News AI Detector</a> into
-        a cached JSON API. Allowing you to programmatically get pangram checks for every hackernews post that reached
-        the frontpage. Feel free to use the hosted instance at <a
-            href="https://hnslop.nilsherzig.com">hnslop.nilsherzig.com</a>. Big thanks to Salah (i assume that he had to
-        sell multiple internal organs to pay for his pangram usage).
-    </p>
-    <p>Please keep in mind that Salah is (as of the time of writing) using Pangram v3.3, which isnt the most up to date
-        model from pangram.</p>
+    <main class="container">
+        <p>
+            <a href="https://github.com/nilsherzig/hnslop">This server</a> turns <a
+                href="https://www.salahadawi.com/hacker-news-ai-detector">Salah Adawi's Hacker News AI Detector</a>
+            into a cached JSON API. Allowing you to programmatically get pangram checks for every hackernews post that
+            reached the frontpage. Feel free to use the hosted instance at <a
+                href="https://hnslop.nilsherzig.com">hnslop.nilsherzig.com</a>. Big thanks to Salah (i assume that he had
+            to sell multiple internal organs to pay for his pangram usage).
+        </p>
+        <p>Please keep in mind that Salah is (as of the time of writing) using Pangram v3.3, which isnt the most up to
+            date model from pangram.</p>
 
-    Request one or more posts:
-    <code>
-        curl 'https://hnslop.nilsherzig.com/v1/posts?ids=49582582,49541888' | jq
-        # {
-        # "posts": [
-        # {
-        # "id": 49582582,
-        # "detector": {
-        # "ai_score": 33,
-        # "url": "https://www.salahadawi.com/hacker-news-ai-detector/49582582"
-        # },
-        # "cache_status": "hit"
-        # },
-        # {
-        # "id": 49541888,
-        # "detector": {
-        # "ai_score": 99,
-        # "url": "https://www.salahadawi.com/hacker-news-ai-detector/49541888"
-        # },
-        # "cache_status": "hit"
-        # }
-        # ]
-        # }
+        <p>Request one or more posts:</p>
+        <pre class="code-block"><code class="language-bash"><span class="syntax-command">curl 'https://hnslop.nilsherzig.com/v1/posts?ids=49582582,49541888' | jq</span>
+<span class="syntax-comment"># <span class="syntax-punctuation">{</span></span>
+<span class="syntax-comment"># <span class="syntax-key">&quot;posts&quot;</span><span class="syntax-punctuation">:</span> <span class="syntax-punctuation">[</span></span>
+<span class="syntax-comment"># <span class="syntax-punctuation">{</span></span>
+<span class="syntax-comment"># <span class="syntax-key">&quot;id&quot;</span><span class="syntax-punctuation">:</span> <span class="syntax-number">49582582</span><span class="syntax-punctuation">,</span></span>
+<span class="syntax-comment"># <span class="syntax-key">&quot;detector&quot;</span><span class="syntax-punctuation">:</span> <span class="syntax-punctuation">{</span></span>
+<span class="syntax-comment"># <span class="syntax-key">&quot;ai_score&quot;</span><span class="syntax-punctuation">:</span> <span class="syntax-number">33</span><span class="syntax-punctuation">,</span></span>
+<span class="syntax-comment"># <span class="syntax-key">&quot;url&quot;</span><span class="syntax-punctuation">:</span> <span class="syntax-string">&quot;https://www.salahadawi.com/hacker-news-ai-detector/49582582&quot;</span></span>
+<span class="syntax-comment"># <span class="syntax-punctuation">}</span><span class="syntax-punctuation">,</span></span>
+<span class="syntax-comment"># <span class="syntax-key">&quot;cache_status&quot;</span><span class="syntax-punctuation">:</span> <span class="syntax-string">&quot;hit&quot;</span></span>
+<span class="syntax-comment"># <span class="syntax-punctuation">}</span><span class="syntax-punctuation">,</span></span>
+<span class="syntax-comment"># <span class="syntax-punctuation">{</span></span>
+<span class="syntax-comment"># <span class="syntax-key">&quot;id&quot;</span><span class="syntax-punctuation">:</span> <span class="syntax-number">49541888</span><span class="syntax-punctuation">,</span></span>
+<span class="syntax-comment"># <span class="syntax-key">&quot;detector&quot;</span><span class="syntax-punctuation">:</span> <span class="syntax-punctuation">{</span></span>
+<span class="syntax-comment"># <span class="syntax-key">&quot;ai_score&quot;</span><span class="syntax-punctuation">:</span> <span class="syntax-number">99</span><span class="syntax-punctuation">,</span></span>
+<span class="syntax-comment"># <span class="syntax-key">&quot;url&quot;</span><span class="syntax-punctuation">:</span> <span class="syntax-string">&quot;https://www.salahadawi.com/hacker-news-ai-detector/49541888&quot;</span></span>
+<span class="syntax-comment"># <span class="syntax-punctuation">}</span><span class="syntax-punctuation">,</span></span>
+<span class="syntax-comment"># <span class="syntax-key">&quot;cache_status&quot;</span><span class="syntax-punctuation">:</span> <span class="syntax-string">&quot;hit&quot;</span></span>
+<span class="syntax-comment"># <span class="syntax-punctuation">}</span></span>
+<span class="syntax-comment"># <span class="syntax-punctuation">]</span></span>
+<span class="syntax-comment"># <span class="syntax-punctuation">}</span></span>
 
-        curl 'https://hnslop.nilsherzig.com/v1/posts/49582582' | jq
-        # {
-        # "id": 49582582,
-        # "detector": {
-        # "ai_score": 33,
-        # "url": "https://www.salahadawi.com/hacker-news-ai-detector/49582582"
-        # },
-        # "cache_status": "hit"
-        # }
-    </code>
+<span class="syntax-command">curl 'https://hnslop.nilsherzig.com/v1/posts/49582582' | jq</span>
+<span class="syntax-comment"># <span class="syntax-punctuation">{</span></span>
+<span class="syntax-comment"># <span class="syntax-key">&quot;id&quot;</span><span class="syntax-punctuation">:</span> <span class="syntax-number">49582582</span><span class="syntax-punctuation">,</span></span>
+<span class="syntax-comment"># <span class="syntax-key">&quot;detector&quot;</span><span class="syntax-punctuation">:</span> <span class="syntax-punctuation">{</span></span>
+<span class="syntax-comment"># <span class="syntax-key">&quot;ai_score&quot;</span><span class="syntax-punctuation">:</span> <span class="syntax-number">33</span><span class="syntax-punctuation">,</span></span>
+<span class="syntax-comment"># <span class="syntax-key">&quot;url&quot;</span><span class="syntax-punctuation">:</span> <span class="syntax-string">&quot;https://www.salahadawi.com/hacker-news-ai-detector/49582582&quot;</span></span>
+<span class="syntax-comment"># <span class="syntax-punctuation">}</span><span class="syntax-punctuation">,</span></span>
+<span class="syntax-comment"># <span class="syntax-key">&quot;cache_status&quot;</span><span class="syntax-punctuation">:</span> <span class="syntax-string">&quot;hit&quot;</span></span>
+<span class="syntax-comment"># <span class="syntax-punctuation">}</span></span></code></pre>
 
-    <p><a href="/userscript.js">Example userscript client</a></p>
+        <p><a href="/userscript.js">Example userscript client</a></p>
+        <p><a class="extension-link" href="/extension.xpi" type="application/x-xpinstall"><img class="firefox-logo"
+                    src="/assets/firefox.svg" alt="" aria-hidden="true">Download the Firefox extension</a></p>
 
-    <p><img src="/assets/hnslop.png" alt="userscript client demo" style="max-width: 80%; height: auto;"></p>
+        <p><img src="/assets/hnslop.png" alt="userscript client demo" style="max-width: 100%; height: auto;"></p>
+    </main>
 </body>
+
+</html>

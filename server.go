@@ -35,7 +35,11 @@ func (app *App) Handler() http.Handler {
 	mux.HandleFunc("/", app.handleIndex)
 	mux.HandleFunc("/healthz", app.handleHealth)
 	mux.HandleFunc("/userscript.js", app.handleUserscript)
+	mux.HandleFunc("/extension.xpi", app.handleExtension)
+	mux.HandleFunc("/hnslop.xpi", app.handleExtension)
 	mux.HandleFunc("/assets/hnslop.png", app.handleScreenshot)
+	mux.HandleFunc("/assets/firefox.svg", app.handleFirefoxIcon)
+	mux.HandleFunc("/assets/favicon.svg", app.handleFavicon)
 	mux.HandleFunc("/v1/posts", app.handlePosts)
 	mux.HandleFunc("/v1/posts/", app.handlePost)
 	return app.logRequests(mux)
@@ -74,6 +78,18 @@ func (app *App) handleUserscript(writer http.ResponseWriter, request *http.Reque
 	_, _ = writer.Write(userscriptAsset)
 }
 
+func (app *App) handleExtension(writer http.ResponseWriter, request *http.Request) {
+	if !requireMethod(writer, request, http.MethodGet) {
+		return
+	}
+	writer.Header().Set("Content-Type", "application/x-xpinstall")
+	writer.Header().Set("Content-Disposition", `inline; filename="hnslop.xpi"`)
+	writer.Header().Set("X-Content-Type-Options", "nosniff")
+	writer.Header().Set("Cache-Control", "public, max-age=3600")
+	writer.WriteHeader(http.StatusOK)
+	_, _ = writer.Write(extensionAsset)
+}
+
 func (app *App) handleScreenshot(writer http.ResponseWriter, request *http.Request) {
 	if !requireMethod(writer, request, http.MethodGet) {
 		return
@@ -82,6 +98,29 @@ func (app *App) handleScreenshot(writer http.ResponseWriter, request *http.Reque
 	writer.Header().Set("Content-Disposition", `inline; filename="hnslop.png"`)
 	writer.WriteHeader(http.StatusOK)
 	_, _ = writer.Write(screenshotAsset)
+}
+
+func (app *App) handleFirefoxIcon(writer http.ResponseWriter, request *http.Request) {
+	if !requireMethod(writer, request, http.MethodGet) {
+		return
+	}
+	writer.Header().Set("Content-Type", "image/svg+xml; charset=utf-8")
+	writer.Header().Set("Content-Disposition", `inline; filename="firefox.svg"`)
+	writer.Header().Set("X-Content-Type-Options", "nosniff")
+	writer.WriteHeader(http.StatusOK)
+	_, _ = writer.Write(firefoxAsset)
+}
+
+func (app *App) handleFavicon(writer http.ResponseWriter, request *http.Request) {
+	if !requireMethod(writer, request, http.MethodGet) {
+		return
+	}
+	writer.Header().Set("Content-Type", "image/svg+xml; charset=utf-8")
+	writer.Header().Set("Content-Disposition", `inline; filename="favicon.svg"`)
+	writer.Header().Set("Cache-Control", "public, max-age=86400")
+	writer.Header().Set("X-Content-Type-Options", "nosniff")
+	writer.WriteHeader(http.StatusOK)
+	_, _ = writer.Write(faviconAsset)
 }
 
 func (app *App) handlePosts(writer http.ResponseWriter, request *http.Request) {

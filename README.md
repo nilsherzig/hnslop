@@ -43,3 +43,9 @@ curl 'https://hnslop.nilsherzig.com/v1/posts/49582582' | jq
 Example client (userscript) at [./userscript.js]:
 
 ![userscript client demo](assets/hnslop.png)
+
+## Firefox extension
+
+Download the Firefox extension from [hnslop.nilsherzig.com/extension.xpi](https://hnslop.nilsherzig.com/extension.xpi). The extension source is in [./extension](./extension).
+
+The package served by the Go server is `hnslop.xpi`. Rebuild it with `just extension-rebuild`; for a release build, set `WEB_EXT_API_KEY` and `WEB_EXT_API_SECRET` and run `just extension-sign`. The signing recipe uses Mozilla Add-ons (AMO) to create an unlisted signed extension. Rebuild or sign the package before rebuilding the server or Docker image.

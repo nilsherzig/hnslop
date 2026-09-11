@@ -70,6 +70,19 @@ func TestIndexServesEmbeddedHTML(t *testing.T) {
 	if !strings.Contains(body, `src="/assets/hnslop.png"`) {
 		t.Fatalf("index did not link the screenshot: %s", body)
 	}
+	if !strings.Contains(body, `href="/extension.xpi"`) ||
+		!strings.Contains(body, `type="application/x-xpinstall"`) {
+		t.Fatalf("index did not provide an installable Firefox extension link: %s", body)
+	}
+	if !strings.Contains(body, `src="/assets/firefox.svg"`) {
+		t.Fatalf("index did not link the Firefox logo: %s", body)
+	}
+	if !strings.Contains(body, `rel="icon"`) || !strings.Contains(body, `href="/assets/favicon.svg"`) {
+		t.Fatalf("index did not link the favicon: %s", body)
+	}
+	if !strings.Contains(body, `<pre class="code-block"><code class="language-bash">`) {
+		t.Fatalf("index did not render the API example as highlighted code: %s", body)
+	}
 	for _, example := range []string{
 		"curl 'https://hnslop.nilsherzig.com/v1/posts?ids=49582582,49541888' | jq",
 		"curl 'https://hnslop.nilsherzig.com/v1/posts/49582582' | jq",
@@ -80,6 +93,74 @@ func TestIndexServesEmbeddedHTML(t *testing.T) {
 	}
 	if strings.Contains(body, "127.0.0.1:8000") {
 		t.Fatalf("index still contains the local default host: %s", body)
+	}
+}
+
+func TestExtensionIsServedAsXPI(t *testing.T) {
+	database, err := OpenDatabase(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+
+	config := DefaultConfig()
+	proxy := NewProxy(database, config, nil)
+	app := NewApp(proxy, config, log.New(io.Discard, "", 0))
+
+	request := httptest.NewRequest(http.MethodGet, "http://example.test/extension.xpi", nil)
+	response := httptest.NewRecorder()
+	app.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("unexpected extension status: %d", response.Code)
+	}
+	if response.Header().Get("Content-Type") != "application/x-xpinstall" {
+		t.Fatalf("unexpected extension content type: %s", response.Header().Get("Content-Type"))
+	}
+	if response.Header().Get("Content-Disposition") != `inline; filename="hnslop.xpi"` {
+		t.Fatalf("unexpected extension disposition: %s", response.Header().Get("Content-Disposition"))
+	}
+	if response.Header().Get("X-Content-Type-Options") != "nosniff" {
+		t.Fatalf("missing nosniff header: %s", response.Header().Get("X-Content-Type-Options"))
+	}
+	if !bytes.Equal(response.Body.Bytes(), extensionAsset) {
+		t.Fatal("extension response did not serve the embedded package")
+	}
+	if !bytes.HasPrefix(response.Body.Bytes(), []byte("PK")) {
+		t.Fatal("extension response was not a ZIP/XPI package")
+	}
+}
+
+func TestBrowserAssetsAreServed(t *testing.T) {
+	database, err := OpenDatabase(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+
+	config := DefaultConfig()
+	proxy := NewProxy(database, config, nil)
+	app := NewApp(proxy, config, log.New(io.Discard, "", 0))
+
+	for _, test := range []struct {
+		path string
+		body []byte
+	}{
+		{path: "/assets/firefox.svg", body: firefoxAsset},
+		{path: "/assets/favicon.svg", body: faviconAsset},
+	} {
+		request := httptest.NewRequest(http.MethodGet, "http://example.test"+test.path, nil)
+		response := httptest.NewRecorder()
+		app.Handler().ServeHTTP(response, request)
+		if response.Code != http.StatusOK {
+			t.Fatalf("unexpected status for %s: %d", test.path, response.Code)
+		}
+		if response.Header().Get("Content-Type") != "image/svg+xml; charset=utf-8" {
+			t.Fatalf("unexpected content type for %s: %s", test.path, response.Header().Get("Content-Type"))
+		}
+		if !bytes.Equal(response.Body.Bytes(), test.body) {
+			t.Fatalf("response for %s did not serve the embedded asset", test.path)
+		}
 	}
 }
 
