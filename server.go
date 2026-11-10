@@ -290,7 +290,7 @@ func (app *App) logRequests(next http.Handler) http.Handler {
 		recorder := &statusRecorder{ResponseWriter: writer}
 		started := time.Now()
 		next.ServeHTTP(recorder, request)
-		app.logger.Printf("request %s %s -> %d (%d bytes, %s)", request.Method, request.URL.RequestURI(), recorder.status(), recorder.bytes, time.Since(started).Round(time.Millisecond))
+		app.logger.Printf("request %s %s -> %d (%d bytes, %s) ua=%q", request.Method, request.URL.RequestURI(), recorder.status(), recorder.bytes, time.Since(started).Round(time.Millisecond), request.UserAgent())
 	})
 }
 

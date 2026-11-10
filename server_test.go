@@ -35,10 +35,14 @@ func TestHealthCheckIsNotLogged(t *testing.T) {
 	}
 
 	request := httptest.NewRequest(http.MethodGet, "http://example.test/userscript.js", nil)
+	request.Header.Set("User-Agent", "test-agent/1.0")
 	response := httptest.NewRecorder()
 	app.Handler().ServeHTTP(response, request)
 	if !strings.Contains(logs.String(), "request GET /userscript.js") {
 		t.Fatalf("normal request was not logged: %s", logs.String())
+	}
+	if !strings.Contains(logs.String(), `ua="test-agent/1.0"`) {
+		t.Fatalf("user agent was not logged: %s", logs.String())
 	}
 }
 
