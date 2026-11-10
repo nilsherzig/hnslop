@@ -11,7 +11,8 @@
     const FILTER_INPUT_ID = "hnslop-filter-input";
     const MAX_AI_SCORE_STORAGE_KEY = "maxAiScorePercent";
     const LOG_PREFIX = "[hnslop]";
-    const NEWS_HOSTNAMES = new Set(["news.ycombinator.com", "www.news.ycombinator.com"]);
+    const HIDDEN_CLASS = "hnslop-hidden";
+    const RESCAN_DELAY_MS = 100;
     const POST_REQUEST_CONCURRENCY = 6;
     const postRequests = new Map();
     const postResults = new Map();
@@ -115,7 +116,93 @@
     #${FILTER_INPUT_ID}:invalid {
       border-color: #b33a3a;
     }
+
+    #${FILTER_CONTROL_ID}[data-site="hcker.news"] {
+      display: block;
+      margin: 0.25em 0 0;
+      font-size: 0.85em;
+    }
+
+    #${FILTER_CONTROL_ID}[data-site="hcker.news"] #${FILTER_INPUT_ID} {
+      border-color: currentColor;
+      background: transparent;
+      color: inherit;
+    }
+
+    .${HIDDEN_CLASS} {
+      display: none !important;
+    }
   `;
+
+    // Each supported site describes where stories live in its DOM. Dynamic
+    // sites render stories after load and re-render them later, so the client
+    // watches them for new or replaced story elements.
+    const SITES = [
+        {
+            name: "news.ycombinator.com",
+            hostnames: new Set(["news.ycombinator.com", "www.news.ycombinator.com"]),
+            dynamic: false,
+            storyRows() {
+                return [...document.querySelectorAll("tr.athing:not(.comtr)[id]")];
+            },
+            storyId(row) {
+                return row.id;
+            },
+            filterHost() {
+                return document.querySelector(".pagetop");
+            },
+            scorePlacement(row) {
+                const metadataRow = row.nextElementSibling;
+                const parent = metadataRow?.querySelector(".subline")
+                    || metadataRow?.querySelector(".subtext")
+                    || row;
+                const commentsLinks = [...parent.querySelectorAll('a[href*="item?id="]')];
+                return {
+                    parent,
+                    reference: commentsLinks[commentsLinks.length - 1] || null,
+                };
+            },
+            setHidden(row, hidden) {
+                row.hidden = hidden;
+                const metadataRow = row.nextElementSibling;
+                if (!metadataRow) {
+                    return;
+                }
+                metadataRow.hidden = hidden;
+                const spacerRow = metadataRow.nextElementSibling;
+                if (spacerRow && spacerRow.classList.contains("spacer")) {
+                    spacerRow.hidden = hidden;
+                }
+            },
+        },
+        {
+            name: "hcker.news",
+            hostnames: new Set(["hcker.news", "www.hcker.news"]),
+            dynamic: true,
+            storyRows() {
+                return [...document.querySelectorAll(".story[data-story-id]")];
+            },
+            storyId(row) {
+                return row.dataset.storyId;
+            },
+            filterHost() {
+                return document.querySelector("#header .header-text-content");
+            },
+            scorePlacement(row) {
+                // Append after hcker.news' trailing overflow menu; placing the
+                // score before it leaves a gap where the menu button appears.
+                return {
+                    parent: row.querySelector(".story-meta") || row,
+                    reference: null,
+                };
+            },
+            setHidden(row, hidden) {
+                row.classList.toggle(HIDDEN_CLASS, hidden);
+            },
+        },
+    ];
+
+    const site = SITES.find((candidate) => candidate.hostnames.has(location.hostname.toLowerCase())) || null;
 
     function installStyles() {
         if (document.getElementById("hnslop-styles")) {
@@ -160,14 +247,15 @@
             return;
         }
 
-        const pageTop = document.querySelector(".pagetop");
-        if (!pageTop) {
-            warn("Could not find the Hacker News top bar");
+        const host = site.filterHost();
+        if (!host) {
+            warn("Could not find a place for the filter control", { site: site.name });
             return;
         }
 
         const control = document.createElement("span");
         control.id = FILTER_CONTROL_ID;
+        control.dataset.site = site.name;
 
         const label = document.createElement("label");
         label.htmlFor = FILTER_INPUT_ID;
@@ -206,38 +294,34 @@
             reapplyFilter();
         });
 
-        control.append(" | ", label, " ", input);
-        pageTop.append(" ", control);
+        if (site.dynamic) {
+            control.append(label, " ", input);
+        } else {
+            control.append(" | ", label, " ", input);
+        }
+        host.append(" ", control);
         log("Installed AI score filter control");
     }
 
-    function isNewsPage() {
-        return NEWS_HOSTNAMES.has(location.hostname.toLowerCase());
-    }
-
     function isItemPage() {
-        return isNewsPage() && location.pathname === "/item" && /^\d+$/.test(
+        return site?.name === "news.ycombinator.com" && location.pathname === "/item" && /^\d+$/.test(
             new URLSearchParams(location.search).get("id") || "",
         );
     }
 
-    function isHomePage() {
-        return isNewsPage() && location.pathname === "/";
-    }
-
     function storyId(row) {
-        return row.id;
+        return site.storyId(row);
     }
 
-    function storyRows() {
-        const rows = [...document.querySelectorAll("tr.athing:not(.comtr)[id]")].filter((row) =>
-            /^\d+$/.test(storyId(row)),
-        );
-        log("Found story rows", {
-            source: "news.ycombinator.com",
-            count: rows.length,
-            ids: rows.map(storyId),
-        });
+    function storyRows({ quiet = false } = {}) {
+        const rows = site.storyRows().filter((row) => /^\d+$/.test(storyId(row) || ""));
+        if (!quiet) {
+            log("Found story rows", {
+                source: site.name,
+                count: rows.length,
+                ids: rows.map(storyId),
+            });
+        }
         return rows;
     }
 
@@ -291,20 +375,8 @@
         return request;
     }
 
-    function scorePlacement(row) {
-        const metadataRow = row.nextElementSibling;
-        const parent = metadataRow?.querySelector(".subline")
-            || metadataRow?.querySelector(".subtext")
-            || row;
-        const commentsLinks = [...parent.querySelectorAll('a[href*="item?id="]')];
-        return {
-            parent,
-            reference: commentsLinks[commentsLinks.length - 1] || null,
-        };
-    }
-
     function scoreElement(row) {
-        const { parent, reference } = scorePlacement(row);
+        const { parent, reference } = site.scorePlacement(row);
         let element = parent.querySelector(`:scope > .${SCORE_CLASS}`)
             || row.querySelector(`.${SCORE_CLASS}`);
         const created = !element;
@@ -368,32 +440,6 @@
             && score > maxAiScorePercent;
     }
 
-    function hideStory(row) {
-        row.hidden = true;
-        const metadataRow = row.nextElementSibling;
-        if (!metadataRow) {
-            return;
-        }
-        metadataRow.hidden = true;
-        const spacerRow = metadataRow.nextElementSibling;
-        if (spacerRow && spacerRow.classList.contains("spacer")) {
-            spacerRow.hidden = true;
-        }
-    }
-
-    function showStory(row) {
-        row.hidden = false;
-        const metadataRow = row.nextElementSibling;
-        if (!metadataRow) {
-            return;
-        }
-        metadataRow.hidden = false;
-        const spacerRow = metadataRow.nextElementSibling;
-        if (spacerRow && spacerRow.classList.contains("spacer")) {
-            spacerRow.hidden = false;
-        }
-    }
-
     function applyFilter(row, post) {
         if (shouldHidePost(post)) {
             const score = numericAiScore(post);
@@ -402,13 +448,13 @@
                 score,
                 maximum: maxAiScorePercent,
             });
-            hideStory(row);
+            site.setHidden(row, true);
             return;
         }
 
         // Also undo a previous filter decision when the script is reloaded
         // with filtering disabled or with a different threshold.
-        showStory(row);
+        site.setHidden(row, false);
     }
 
     function reapplyFilter() {
@@ -422,7 +468,7 @@
             }
             evaluated += 1;
             applyFilter(row, post);
-            if (row.hidden) {
+            if (shouldHidePost(post)) {
                 hidden += 1;
             }
         });
@@ -449,6 +495,7 @@
             hasDetector: Boolean(detector),
             detectorUrl: detector && detector.url,
         });
+        element.dataset.storyId = id;
         element.dataset.verdict = verdict;
         element.title = detector
             ? `${label} (${verdict})`
@@ -471,6 +518,7 @@
     function renderError(row, error) {
         warn("Rendering an unavailable score", { id: storyId(row), error: error && error.message });
         const element = scoreElement(row);
+        element.dataset.storyId = storyId(row);
         element.dataset.verdict = "failed";
         element.title = "Could not load the Pangram score";
         element.textContent = " | Pangram: ?";
@@ -523,21 +571,68 @@
         }
     }
 
+    // Dynamic sites can add stories later or replace a rendered story's
+    // metadata. Render every story whose score element is missing or belongs
+    // to a different story; cached posts make re-renders cheap.
+    function renderNewRows() {
+        const rows = storyRows({ quiet: true }).filter((row) => {
+            const element = scoreElement(row);
+            if (element.dataset.storyId === storyId(row)) {
+                return false;
+            }
+            element.dataset.storyId = storyId(row);
+            delete element.dataset.verdict;
+            element.textContent = " | …";
+            return true;
+        });
+        if (!rows.length) {
+            return;
+        }
+        log("Found new story rows", {
+            source: site.name,
+            count: rows.length,
+            ids: rows.map(storyId),
+        });
+        void renderRowsIndividually(rows);
+    }
+
+    function observeStories() {
+        let timer = null;
+        const observer = new MutationObserver(() => {
+            if (timer !== null) {
+                return;
+            }
+            timer = setTimeout(() => {
+                timer = null;
+                renderNewRows();
+            }, RESCAN_DELAY_MS);
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+        log("Watching for story changes", { site: site.name });
+    }
+
     async function main() {
-        const newsPage = isNewsPage();
         const itemPage = isItemPage();
-        const homePage = isHomePage();
         log("Extension started", {
             url: location.href,
-            page: itemPage ? "news-item" : homePage ? "news-home" : "news-view",
+            site: site && site.name,
+            page: itemPage ? "news-item" : "news-view",
         });
 
-        if (!newsPage) {
+        if (!site) {
             log("Skipping unsupported page");
             return;
         }
 
         installStyles();
+        if (site.dynamic) {
+            await restoreMaxAiScore();
+            installFilterControl();
+            renderNewRows();
+            observeStories();
+            return;
+        }
+
         const rows = storyRows();
         if (!rows.length) {
             warn("Current Hacker News view did not contain any story rows");

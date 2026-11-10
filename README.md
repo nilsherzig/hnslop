@@ -40,7 +40,7 @@ curl 'https://hnslop.nilsherzig.com/v1/posts/49582582' | jq
 # }
 ```
 
-Example client (userscript) at [./userscript.js]:
+Example client (userscript) at [./userscript.js]. The userscript and the Firefox extension work on [news.ycombinator.com](https://news.ycombinator.com) and on the [hcker.news](https://hcker.news) reader:
 
 ![userscript client demo](assets/hnslop.png)
 
