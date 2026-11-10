@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "hnslop – Pangram scores on Hacker News",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Show Pangram AI-detector scores next to Hacker News stories on news.ycombinator.com and hcker.news.",
   "browser_specific_settings": {
     "gecko": {

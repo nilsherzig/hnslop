@@ -117,16 +117,45 @@
       border-color: #b33a3a;
     }
 
+    /* Match hcker.news' muted controls; its theme variables follow the
+       selected theme, the fallbacks keep the control readable without them. */
     #${FILTER_CONTROL_ID}[data-site="hcker.news"] {
-      display: block;
-      margin: 0.25em 0 0;
-      font-size: 0.85em;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4em;
+      margin-left: 0.75em;
+      color: var(--ink-soft, #828282);
+      font-family: Verdana, Geneva, sans-serif;
+      font-size: var(--font-size-smaller-val, 12px);
+      font-weight: 500;
     }
 
     #${FILTER_CONTROL_ID}[data-site="hcker.news"] #${FILTER_INPUT_ID} {
-      border-color: currentColor;
+      width: 3.5em;
+      margin: 0;
+      padding: 1px 4px;
+      border: 1px solid var(--line-mid, #828282);
+      border-radius: 4px;
       background: transparent;
-      color: inherit;
+      color: var(--ink, inherit);
+      font: inherit;
+      appearance: textfield;
+      -moz-appearance: textfield;
+    }
+
+    #${FILTER_CONTROL_ID}[data-site="hcker.news"] #${FILTER_INPUT_ID}::-webkit-inner-spin-button,
+    #${FILTER_CONTROL_ID}[data-site="hcker.news"] #${FILTER_INPUT_ID}::-webkit-outer-spin-button {
+      appearance: none;
+      margin: 0;
+    }
+
+    #${FILTER_CONTROL_ID}[data-site="hcker.news"] #${FILTER_INPUT_ID}:focus {
+      border-color: var(--accent, #ff6600);
+      outline: none;
+    }
+
+    #${FILTER_CONTROL_ID}[data-site="hcker.news"] #${FILTER_INPUT_ID}:invalid {
+      border-color: var(--status-error-text-color, #b33a3a);
     }
 
     .${HIDDEN_CLASS} {
@@ -295,7 +324,7 @@
         });
 
         if (site.dynamic) {
-            control.append(label, " ", input);
+            control.append(label, input);
         } else {
             control.append(" | ", label, " ", input);
         }
